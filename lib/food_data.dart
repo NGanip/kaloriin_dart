@@ -1,10 +1,10 @@
 class FoodData {
-  int id;
+  int? id;
   String name;
   double weight;
   double calories;
 
-  FoodData({required this.id, required this.name, required this.weight, required this.calories});
+  FoodData({this.id, required this.name, required this.weight, required this.calories});
 
   Map<String, dynamic> toMap() {
     return {
@@ -15,12 +15,12 @@ class FoodData {
     };
   }
 
-  static FoodData fromMap(Map<String, dynamic> map) {
+  factory FoodData.fromMap(Map<String, dynamic> map) {
     return FoodData(
       id: map['id'],
-      name: map['name'],
-      weight: map['weight'],
-      calories: map['calories'],
+      name: map['name'] ?? '',
+      weight: (map['weight'] ?? 0).toDouble(),
+      calories: (map['calories'] ?? 0).toDouble(),
     );
   }
 }

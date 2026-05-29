@@ -1,14 +1,15 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'database_helper.dart';
 import 'food_data.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -17,78 +18,65 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: HomePage(),
+      home: const HomePage(),
     );
   }
 }
 
 class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
   @override
   _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  // Bluetooth
-  BluetoothConnection connection;
-  StreamSubscription<BluetoothDataEvent> subscription;
-  String weight;
+  BluetoothConnection? connection;
+  String? weight;
 
-  // Database
-  DatabaseHelper helper = DatabaseHelper();
-  List<FoodData> foodDataList = List<FoodData>();
-
-  // Search bar
-  TextEditingController _controller = TextEditingController();
+  final DatabaseHelper helper = DatabaseHelper();
+  List<FoodData> foodDataList = [];
+  final TextEditingController _controller = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _loadFoodData();
+  }
 
-    // Connect to ESP32
-    connect();
-
-    // Load food data
-    helper.getFoodMapList().then((foodMapList) {
+  void _loadFoodData() async {
+    try {
+      final foodMapList = await helper.getFoodMapList();
       setState(() {
-        for (int i = 0; i < foodMapList.length; i++) {
-          foodDataList.add(FoodData.fromMapObject(foodMapList[i]));
+        for (var foodMap in foodMapList) {
+          foodDataList.add(FoodData.fromMap(Map<String, dynamic>.from(foodMap)));
         }
       });
-    });
+    } catch (e) {
+      debugPrint('Error loading food data: $e');
+    }
   }
 
   @override
   void dispose() {
-    super.dispose();
-    subscription?.cancel();
+    _controller.dispose();
     connection?.dispose();
-  }
-
-  void connect() async {
-    BluetoothDevice device = await BluetoothConnection.toAddress(
-      '00:00:00:00:00:00',
-    );
-    connection = BluetoothConnection(device);
-    subscription = connection.input.listen(null).asBroadcastStream().listen((event) {
-      setState(() {
-        weight = event.data;
-      });
-    });
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Nutrition App'),
+        title: const Text('Nutrition App'),
         actions: [
           IconButton(
-            icon: Icon(Icons.search),
+            icon: const Icon(Icons.search),
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => SearchFood(),
+                  builder: (context) => SearchFood(foodDataList: foodDataList),
                 ),
               );
             },
@@ -96,71 +84,83 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
       body: Column(
-          children: [
-      Padding(
-      padding: EdgeInsets.all(8.0),
-      child: Text('Weight: $weight'),
-    ),
-    Expanded(
-    child: ListView.builder(
-    itemCount: food
-    itemBuilder: (BuildContext context, int index) {
-    FoodData foodData = foodDataList[index];
-    return ListTile(
-    title: Text(foodData.name),
-    subtitle: Text(foodData.calories.toString() + " cal"),
-    );
-    },
-    ),
-    ),
-    ],
-    ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text('Weight: ${weight ?? "--"}'),
+          ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: foodDataList.length,
+              itemBuilder: (BuildContext context, int index) {
+                FoodData foodData = foodDataList[index];
+                return ListTile(
+                  title: Text(foodData.name),
+                  subtitle: Text('${foodData.calories} cal'),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class SearchFood extends StatefulWidget {
+  final List<FoodData> foodDataList;
+
+  const SearchFood({super.key, required this.foodDataList});
+
   @override
   _SearchFoodState createState() => _SearchFoodState();
 }
 
 class _SearchFoodState extends State<SearchFood> {
   List<FoodData> _searchResult = [];
-  TextEditingController _controller = TextEditingController();
+  final TextEditingController _controller = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(() {
-      if (_controller.text.isEmpty) {
-        setState(() {
-          _searchResult = [];
-        });
-        return;
-      }
+    _controller.addListener(_onSearchChanged);
+  }
+
+  void _onSearchChanged() {
+    if (_controller.text.isEmpty) {
       setState(() {
-        _searchResult = foodDataList
-            .where((foodData) => foodData.name
-            .toLowerCase()
-            .contains(_controller.text.toLowerCase()))
-            .toList();
+        _searchResult = [];
       });
+      return;
+    }
+    setState(() {
+      _searchResult = widget.foodDataList
+          .where((foodData) => foodData.name
+              .toLowerCase()
+              .contains(_controller.text.toLowerCase()))
+          .toList();
     });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Search Food"),
+        title: const Text("Search Food"),
       ),
       body: Column(
         children: [
           Padding(
-            padding: EdgeInsets.all(8.0),
+            padding: const EdgeInsets.all(8.0),
             child: TextField(
               controller: _controller,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: "Search food",
               ),
             ),
@@ -172,10 +172,10 @@ class _SearchFoodState extends State<SearchFood> {
                 FoodData foodData = _searchResult[index];
                 return ListTile(
                   title: Text(foodData.name),
-                  subtitle: Text(foodData.calories.toString() + " cal"),
+                  subtitle: Text('${foodData.calories} cal'),
                   onTap: () {
-                    // Use foodData from selected row
-                    // Calculate calories
+                    // Calculate calories based on weight
+                    Navigator.pop(context, foodData);
                   },
                 );
               },
